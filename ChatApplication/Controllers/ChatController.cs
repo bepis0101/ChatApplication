@@ -1,0 +1,78 @@
+﻿using ChatApplication.Models;
+using ChatApplication.Domain;
+using ChatApplication.Domain.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using MediatR;
+using ChatApplication.Domain.Handler;
+
+namespace ChatApplication.Controllers
+{
+    [Authorize]
+    public class ChatController : Controller
+    {
+
+        private readonly IMediator _mediator;
+        
+        public ChatController(IMediator mediator)
+        {
+            _mediator = mediator;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Index()
+        {
+            var Id = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var chatParameters = new ChatUseCaseParameters()
+            {
+                UserId = Guid.Parse(Id)
+            };
+            
+            var result = await _mediator.Send(chatParameters);
+            
+            if(result.Success == false)
+            {
+                return RedirectToAction("Index", "Home");
+            }
+            var allUsers = new List<UserViewModel>();
+            foreach (var user in result.Chats)
+            {
+                allUsers.Add(new UserViewModel()
+                {
+                    Id = user.Id,
+                    Username = user.Username,
+                    Email = user.Email
+                });
+            }
+            return View(allUsers);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Chat(Guid Id)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var messageParameters = new MessageUseCaseParameters()
+            {
+                SenderId = Guid.Parse(userId),
+                ReceiverId = Id
+            };
+
+            var result = await _mediator.Send(messageParameters);
+            if (result.Success == false)
+            {
+                return RedirectToAction("Index", "Chat");
+            }
+            var chat = new ChatModel()
+            {
+                Messages = result.Messages,
+                ReceiverUsername = result.Messages[0].Receiver ?? ""
+            };
+            return View(chat);
+        }
+    }
+}
